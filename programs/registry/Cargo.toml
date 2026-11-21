@@ -1,0 +1,20 @@
+[package]
+name = "indian-rwa-registry"
+version = "0.1.0"
+description = "Composable fictional RWA registry demonstration for Solana"
+edition = "2021"
+
+[lib]
+crate-name = "indian_rwa_registry"
+crate-type = ["cdylib", "lib"]
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build"]
+
+[dependencies]
+anchor-lang = { workspace = true }

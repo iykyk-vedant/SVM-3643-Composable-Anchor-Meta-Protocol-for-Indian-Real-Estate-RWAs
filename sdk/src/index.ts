@@ -1,0 +1,2 @@
+export { hashDocument } from "./property";
+
