@@ -14,6 +14,8 @@ The workspace has issuer-owned asset PDAs, append-only document version PDAs, ve
 
 The workspace pins the Anchor and Solana CLI versions in `Anchor.toml` and Anchor Rust dependency in `Cargo.toml`. Verify the installed versions before building.
 
+On a fresh checkout, build once to generate the local program keypair, run `anchor keys sync`, then build again so `declare_id!`, `Anchor.toml`, and the SBF artifact use the same program address.
+
 ## Commands
 
 ```sh
@@ -28,7 +30,7 @@ pnpm --filter @indian-rwa/demo-app dev
 
 For local development, configure a local Solana keypair and validator as described in the [Solana CLI docs](https://solana.com/docs/references/cli). `anchor test` starts the configured local validator, deploys the program, then runs the TypeScript integration tests.
 
-To seed a local validator with synthetic records, run `solana-test-validator` in one terminal, then `anchor build`, `anchor deploy`, and `anchor run demo` in another. The demo creates an asset, versions and attests a fictional valuation commitment, records eight synthetic offeree references (six invited, four applied, three allotted), creates and finalizes one fictional distribution epoch, and checks a valid and tampered receipt proof. It requires an Anchor-generated IDL at `target/idl/indian_rwa_registry.json`.
+To seed a local validator with synthetic records, run `anchor build`, then start `solana-test-validator --reset --bpf-program target/deploy/indian_rwa_registry-keypair.json target/deploy/indian_rwa_registry.so` and run `anchor run demo` in another terminal. The validator loads the local program at genesis. The demo creates an asset, versions and attests a fictional valuation commitment, records eight synthetic offeree references (six invited, four applied, three allotted), creates and finalizes one fictional distribution epoch, and checks a valid and tampered receipt proof. It requires an Anchor-generated IDL at `target/idl/indian_rwa_registry.json`.
 
 ## Property registry (implemented first slice)
 
