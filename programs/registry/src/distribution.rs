@@ -3,7 +3,7 @@ use anchor_lang::prelude::*;
 use crate::{property::AssetRegistry, ErrorCode};
 
 pub fn create_epoch(
-    ctx: Context<CreateEpoch>,
+    ctx: Context<crate::CreateEpoch>,
     epoch_id: u64,
     currency_code: [u8; 3],
     decimals: u8,
@@ -17,11 +17,20 @@ pub fn create_epoch(
     merkle_root: [u8; 32],
     evidence_manifest_commitment: [u8; 32],
 ) -> Result<()> {
-    validate_distribution(gross, expenses_and_reserves, distributable, total_withheld, total_net)?;
+    validate_distribution(
+        gross,
+        expenses_and_reserves,
+        distributable,
+        total_withheld,
+        total_net,
+    )?;
     require!(valid_currency(currency_code), ErrorCode::InvalidCurrency);
     require!(snapshot_commitment != [0; 32], ErrorCode::InvalidCommitment);
     require!(merkle_root != [0; 32], ErrorCode::InvalidCommitment);
-    require!(evidence_manifest_commitment != [0; 32], ErrorCode::InvalidCommitment);
+    require!(
+        evidence_manifest_commitment != [0; 32],
+        ErrorCode::InvalidCommitment
+    );
 
     let epoch = &mut ctx.accounts.epoch;
     epoch.asset = ctx.accounts.asset.key();
@@ -41,21 +50,27 @@ pub fn create_epoch(
     epoch.finalized = false;
     epoch.created_at = Clock::get()?.unix_timestamp;
     epoch.bump = ctx.bumps.epoch;
-    emit!(DistributionEpochCreated { asset: epoch.asset, epoch: epoch.key(), issuer: epoch.issuer });
+    emit!(DistributionEpochCreated {
+        asset: epoch.asset,
+        epoch: epoch.key(),
+        issuer: epoch.issuer
+    });
     Ok(())
 }
 
-pub fn finalize_epoch(ctx: Context<FinalizeEpoch>) -> Result<()> {
+pub fn finalize_epoch(ctx: Context<crate::FinalizeEpoch>) -> Result<()> {
     require!(!ctx.accounts.epoch.finalized, ErrorCode::EpochFinalized);
     ctx.accounts.epoch.finalized = true;
     ctx.accounts.epoch.finalized_at = Some(Clock::get()?.unix_timestamp);
-    emit!(DistributionEpochFinalized { epoch: ctx.accounts.epoch.key() });
+    emit!(DistributionEpochFinalized {
+        epoch: ctx.accounts.epoch.key()
+    });
     Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
 pub fn record_correction(
-    ctx: Context<RecordCorrection>,
+    ctx: Context<crate::RecordCorrection>,
     correction_index: u32,
     currency_code: [u8; 3],
     decimals: u8,
@@ -69,29 +84,60 @@ pub fn record_correction(
     reason_commitment: [u8; 32],
 ) -> Result<()> {
     require!(ctx.accounts.epoch.finalized, ErrorCode::EpochNotFinalized);
-    validate_distribution(gross, expenses_and_reserves, distributable, total_withheld, total_net)?;
+    validate_distribution(
+        gross,
+        expenses_and_reserves,
+        distributable,
+        total_withheld,
+        total_net,
+    )?;
     require!(valid_currency(currency_code), ErrorCode::InvalidCurrency);
-    require!(currency_code == ctx.accounts.epoch.currency_code, ErrorCode::InvalidCurrency);
-    require!(decimals == ctx.accounts.epoch.decimals, ErrorCode::InvalidCurrency);
+    require!(
+        currency_code == ctx.accounts.epoch.currency_code,
+        ErrorCode::InvalidCurrency
+    );
+    require!(
+        decimals == ctx.accounts.epoch.decimals,
+        ErrorCode::InvalidCurrency
+    );
     require!(merkle_root != [0; 32], ErrorCode::InvalidCommitment);
-    require!(evidence_manifest_commitment != [0; 32], ErrorCode::InvalidCommitment);
+    require!(
+        evidence_manifest_commitment != [0; 32],
+        ErrorCode::InvalidCommitment
+    );
     require!(reason_commitment != [0; 32], ErrorCode::InvalidCommitment);
     match (correction_index, ctx.accounts.previous_correction.as_ref()) {
         (0, None) => (),
         (index, Some(previous)) => {
-            require_keys_eq!(previous.epoch, ctx.accounts.epoch.key(), ErrorCode::InvalidCorrectionChain);
-            require!(previous.correction_index.checked_add(1) == Some(index), ErrorCode::InvalidCorrectionChain);
+            require_keys_eq!(
+                previous.epoch,
+                ctx.accounts.epoch.key(),
+                ErrorCode::InvalidCorrectionChain
+            );
+            require!(
+                previous.correction_index.checked_add(1) == Some(index),
+                ErrorCode::InvalidCorrectionChain
+            );
             let expected = Pubkey::find_program_address(
-                &[b"correction", ctx.accounts.epoch.key().as_ref(), &previous.correction_index.to_le_bytes()],
+                &[
+                    b"correction",
+                    ctx.accounts.epoch.key().as_ref(),
+                    &previous.correction_index.to_le_bytes(),
+                ],
                 ctx.program_id,
-            ).0;
+            )
+            .0;
             require_keys_eq!(previous.key(), expected, ErrorCode::InvalidCorrectionChain);
         }
         _ => return err!(ErrorCode::InvalidCorrectionChain),
     }
     let correction = &mut ctx.accounts.correction;
     correction.epoch = ctx.accounts.epoch.key();
-    correction.previous_correction = ctx.accounts.previous_correction.as_ref().map(|account| account.key());
+    correction.previous_correction = ctx
+        .accounts
+        .previous_correction
+        .as_ref()
+        .map(|account| account.key());
     correction.correction_index = correction_index;
     correction.currency_code = currency_code;
     correction.decimals = decimals;
@@ -105,13 +151,29 @@ pub fn record_correction(
     correction.reason_commitment = reason_commitment;
     correction.created_at = Clock::get()?.unix_timestamp;
     correction.bump = ctx.bumps.correction;
-    emit!(DistributionCorrectionRecorded { epoch: correction.epoch, correction: correction.key(), index: correction_index });
+    emit!(DistributionCorrectionRecorded {
+        epoch: correction.epoch,
+        correction: correction.key(),
+        index: correction_index
+    });
     Ok(())
 }
 
-pub fn validate_distribution(gross: u64, expenses: u64, distributable: u64, withheld: u64, net: u64) -> Result<()> {
-    require!(gross.checked_sub(expenses) == Some(distributable), ErrorCode::InvalidDistributionTotals);
-    require!(distributable.checked_sub(withheld) == Some(net), ErrorCode::InvalidDistributionTotals);
+pub fn validate_distribution(
+    gross: u64,
+    expenses: u64,
+    distributable: u64,
+    withheld: u64,
+    net: u64,
+) -> Result<()> {
+    require!(
+        gross.checked_sub(expenses) == Some(distributable),
+        ErrorCode::InvalidDistributionTotals
+    );
+    require!(
+        distributable.checked_sub(withheld) == Some(net),
+        ErrorCode::InvalidDistributionTotals
+    );
     Ok(())
 }
 
@@ -156,6 +218,7 @@ pub struct FinalizeEpoch<'info> {
 #[derive(Accounts)]
 #[instruction(correction_index: u32)]
 pub struct RecordCorrection<'info> {
+    #[account(mut)]
     pub issuer: Signer<'info>,
     #[account(
         seeds = [b"epoch", epoch.asset.as_ref(), &epoch.epoch_id.to_le_bytes()],
@@ -219,11 +282,21 @@ pub struct CorrectionEpoch {
 }
 
 #[event]
-pub struct DistributionEpochCreated { pub asset: Pubkey, pub epoch: Pubkey, pub issuer: Pubkey }
+pub struct DistributionEpochCreated {
+    pub asset: Pubkey,
+    pub epoch: Pubkey,
+    pub issuer: Pubkey,
+}
 #[event]
-pub struct DistributionEpochFinalized { pub epoch: Pubkey }
+pub struct DistributionEpochFinalized {
+    pub epoch: Pubkey,
+}
 #[event]
-pub struct DistributionCorrectionRecorded { pub epoch: Pubkey, pub correction: Pubkey, pub index: u32 }
+pub struct DistributionCorrectionRecorded {
+    pub epoch: Pubkey,
+    pub correction: Pubkey,
+    pub index: u32,
+}
 
 #[cfg(test)]
 mod tests {

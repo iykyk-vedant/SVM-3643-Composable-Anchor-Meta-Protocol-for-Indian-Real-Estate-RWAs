@@ -1,6 +1,7 @@
 /node_modules/
 **/node_modules/
 /target/
+/test-ledger/
 /.anchor/
 /app/.next/
 /app/out/

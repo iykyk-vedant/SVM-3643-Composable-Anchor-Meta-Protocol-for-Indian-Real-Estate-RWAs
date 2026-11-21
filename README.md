@@ -4,7 +4,7 @@ A five-day Solana prototype for three composable record registries: property doc
 
 ## Current implementation status
 
-The workspace has issuer-owned asset PDAs, append-only document version PDAs, verifier authorization/attestation, a Private Placement Registry with registrar roles and persistent offeree event records, and a Rental Yield & Tax Receipt Registry with immutable epochs and append-only corrections. The SDK has document hashing and deterministic Merkle receipt generation/proof verification. Anchor integration tests, remaining SDK transaction builders/fetchers, lifecycle demo and Next.js UI are still pending.
+The workspace has issuer-owned asset PDAs, append-only document version PDAs, verifier authorization/attestation, a Private Placement Registry with registrar roles and persistent offeree event records, and a Rental Yield & Tax Receipt Registry with immutable epochs and append-only corrections. The SDK has typed transaction helpers, account fetchers, domain-separated hashing, and deterministic Merkle receipt generation/proof verification. A localnet lifecycle script and Next.js fictional scenario/receipt-proof UI are present. Rust/Anchor builds and validator-backed integration tests are verified. The UI is a local preview, not a transaction client.
 
 ## Requirements
 
@@ -18,13 +18,17 @@ The workspace pins the Anchor and Solana CLI versions in `Anchor.toml` and Ancho
 
 ```sh
 pnpm install
-cargo fmt --check
+cargo fmt --all -- --check
 anchor build
 anchor test
+pnpm test:unit
 pnpm --filter @indian-rwa/registry-sdk typecheck
+pnpm --filter @indian-rwa/demo-app dev
 ```
 
 For local development, configure a local Solana keypair and validator as described in the [Solana CLI docs](https://solana.com/docs/references/cli). `anchor test` starts the configured local validator, deploys the program, then runs the TypeScript integration tests.
+
+To seed a local validator with synthetic records, run `solana-test-validator` in one terminal, then `anchor build`, `anchor deploy`, and `anchor run demo` in another. The demo creates an asset, versions and attests a fictional valuation commitment, records eight synthetic offeree references (six invited, four applied, three allotted), creates and finalizes one fictional distribution epoch, and checks a valid and tampered receipt proof. It requires an Anchor-generated IDL at `target/idl/indian_rwa_registry.json`.
 
 ## Property registry (implemented first slice)
 

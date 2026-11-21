@@ -5,7 +5,7 @@ description = "Composable fictional RWA registry demonstration for Solana"
 edition = "2021"
 
 [lib]
-crate-name = "indian_rwa_registry"
+name = "indian_rwa_registry"
 crate-type = ["cdylib", "lib"]
 
 [features]

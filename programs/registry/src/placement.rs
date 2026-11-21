@@ -2,17 +2,21 @@ use anchor_lang::prelude::*;
 
 use crate::{property::AssetRegistry, ErrorCode};
 
-pub fn authorize_registrar(ctx: Context<ManageRegistrar>) -> Result<()> {
+pub fn authorize_registrar(ctx: Context<crate::ManageRegistrar>) -> Result<()> {
     let role = &mut ctx.accounts.authorization;
     role.asset = ctx.accounts.asset.key();
     role.registrar = ctx.accounts.registrar.key();
     role.active = true;
     role.bump = ctx.bumps.authorization;
-    emit!(RegistrarAuthorizationChanged { asset: role.asset, registrar: role.registrar, active: true });
+    emit!(RegistrarAuthorizationChanged {
+        asset: role.asset,
+        registrar: role.registrar,
+        active: true
+    });
     Ok(())
 }
 
-pub fn revoke_registrar(ctx: Context<ManageRegistrar>) -> Result<()> {
+pub fn revoke_registrar(ctx: Context<crate::ManageRegistrar>) -> Result<()> {
     require!(ctx.accounts.authorization.active, ErrorCode::AlreadyRevoked);
     ctx.accounts.authorization.active = false;
     emit!(RegistrarAuthorizationChanged {
@@ -24,7 +28,7 @@ pub fn revoke_registrar(ctx: Context<ManageRegistrar>) -> Result<()> {
 }
 
 pub fn create_offering(
-    ctx: Context<CreateOffering>,
+    ctx: Context<crate::CreateOffering>,
     offering_id: [u8; 32],
     fiscal_period: [u8; 16],
     terms_commitment: [u8; 32],
@@ -46,18 +50,28 @@ pub fn create_offering(
     offering.closed = false;
     offering.created_at = Clock::get()?.unix_timestamp;
     offering.bump = ctx.bumps.offering;
-    emit!(OfferingCreated { asset: offering.asset, offering: offering.key(), issuer: offering.issuer });
+    emit!(OfferingCreated {
+        asset: offering.asset,
+        offering: offering.key(),
+        issuer: offering.issuer
+    });
     Ok(())
 }
 
-pub fn register_offeree(ctx: Context<RegisterOfferee>, offeree_ref: [u8; 32]) -> Result<()> {
+pub fn register_offeree(ctx: Context<crate::RegisterOfferee>, offeree_ref: [u8; 32]) -> Result<()> {
     require!(offeree_ref != [0; 32], ErrorCode::InvalidIdentifier);
     require!(!ctx.accounts.offering.closed, ErrorCode::OfferingClosed);
     let offering = &mut ctx.accounts.offering;
     if let Some(limit) = offering.administrative_offeree_limit {
-        require!(offering.registered_count < limit, ErrorCode::AdministrativeLimitReached);
+        require!(
+            offering.registered_count < limit,
+            ErrorCode::AdministrativeLimitReached
+        );
     }
-    offering.registered_count = offering.registered_count.checked_add(1).ok_or(ErrorCode::ArithmeticOverflow)?;
+    offering.registered_count = offering
+        .registered_count
+        .checked_add(1)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
     let offeree = &mut ctx.accounts.offeree;
     offeree.offering = offering.key();
     offeree.offeree_ref = offeree_ref;
@@ -77,12 +91,15 @@ pub fn register_offeree(ctx: Context<RegisterOfferee>, offeree_ref: [u8; 32]) ->
     first_event.amount = None;
     first_event.created_at = offeree.created_at;
     first_event.bump = ctx.bumps.registration_event;
-    emit!(OffereeRegistered { offering: offering.key(), offeree_ref });
+    emit!(OffereeRegistered {
+        offering: offering.key(),
+        offeree_ref
+    });
     Ok(())
 }
 
 pub fn record_offeree_event(
-    ctx: Context<RecordOffereeEvent>,
+    ctx: Context<crate::RecordOffereeEvent>,
     event: OffereeEvent,
     commitment: [u8; 32],
     allotment_amount: Option<u64>,
@@ -94,34 +111,58 @@ pub fn record_offeree_event(
     match event {
         OffereeEvent::Registered => return err!(ErrorCode::InvalidStateTransition),
         OffereeEvent::Invite => {
-            require!(offeree.state == OffereeState::Registered, ErrorCode::InvalidStateTransition);
+            require!(
+                offeree.state == OffereeState::Registered,
+                ErrorCode::InvalidStateTransition
+            );
             offeree.state = OffereeState::Invited;
             offeree.invitation_commitment = Some(commitment);
-            offering.invited_count = offering.invited_count.checked_add(1).ok_or(ErrorCode::ArithmeticOverflow)?;
+            offering.invited_count = offering
+                .invited_count
+                .checked_add(1)
+                .ok_or(ErrorCode::ArithmeticOverflow)?;
         }
         OffereeEvent::Apply => {
-            require!(offeree.state == OffereeState::Invited, ErrorCode::InvalidStateTransition);
+            require!(
+                offeree.state == OffereeState::Invited,
+                ErrorCode::InvalidStateTransition
+            );
             offeree.state = OffereeState::Applied;
             offeree.application_commitment = Some(commitment);
-            offering.applied_count = offering.applied_count.checked_add(1).ok_or(ErrorCode::ArithmeticOverflow)?;
+            offering.applied_count = offering
+                .applied_count
+                .checked_add(1)
+                .ok_or(ErrorCode::ArithmeticOverflow)?;
         }
         OffereeEvent::Allot => {
-            require!(offeree.state == OffereeState::Applied, ErrorCode::InvalidStateTransition);
+            require!(
+                offeree.state == OffereeState::Applied,
+                ErrorCode::InvalidStateTransition
+            );
             let amount = allotment_amount.ok_or(ErrorCode::InvalidAmount)?;
             require!(amount > 0, ErrorCode::InvalidAmount);
             offeree.state = OffereeState::Allotted;
             offeree.allotment_commitment = Some(commitment);
             offeree.allotment_amount = Some(amount);
-            offering.allotted_count = offering.allotted_count.checked_add(1).ok_or(ErrorCode::ArithmeticOverflow)?;
+            offering.allotted_count = offering
+                .allotted_count
+                .checked_add(1)
+                .ok_or(ErrorCode::ArithmeticOverflow)?;
         }
         OffereeEvent::Reject => {
-            require!(offeree.state == OffereeState::Applied, ErrorCode::InvalidStateTransition);
+            require!(
+                offeree.state == OffereeState::Applied,
+                ErrorCode::InvalidStateTransition
+            );
             require!(allotment_amount.is_none(), ErrorCode::InvalidAmount);
             offeree.state = OffereeState::Rejected;
         }
         OffereeEvent::Withdraw => {
             require!(
-                matches!(offeree.state, OffereeState::Registered | OffereeState::Invited | OffereeState::Applied),
+                matches!(
+                    offeree.state,
+                    OffereeState::Registered | OffereeState::Invited | OffereeState::Applied
+                ),
                 ErrorCode::InvalidStateTransition
             );
             require!(allotment_amount.is_none(), ErrorCode::InvalidAmount);
@@ -136,15 +177,24 @@ pub fn record_offeree_event(
     event_record.amount = allotment_amount;
     event_record.created_at = Clock::get()?.unix_timestamp;
     event_record.bump = ctx.bumps.event_record;
-    offeree.event_count = offeree.event_count.checked_add(1).ok_or(ErrorCode::ArithmeticOverflow)?;
-    emit!(OffereeEventRecorded { offering: offering.key(), offeree_ref: offeree.offeree_ref, event });
+    offeree.event_count = offeree
+        .event_count
+        .checked_add(1)
+        .ok_or(ErrorCode::ArithmeticOverflow)?;
+    emit!(OffereeEventRecorded {
+        offering: offering.key(),
+        offeree_ref: offeree.offeree_ref,
+        event
+    });
     Ok(())
 }
 
-pub fn close_offering(ctx: Context<CloseOffering>) -> Result<()> {
+pub fn close_offering(ctx: Context<crate::CloseOffering>) -> Result<()> {
     require!(!ctx.accounts.offering.closed, ErrorCode::OfferingClosed);
     ctx.accounts.offering.closed = true;
-    emit!(OfferingClosedEvent { offering: ctx.accounts.offering.key() });
+    emit!(OfferingClosedEvent {
+        offering: ctx.accounts.offering.key()
+    });
     Ok(())
 }
 
@@ -235,6 +285,7 @@ pub struct RegisterOfferee<'info> {
 
 #[derive(Accounts)]
 pub struct RecordOffereeEvent<'info> {
+    #[account(mut)]
     pub registrar: Signer<'info>,
     #[account(
         mut,
@@ -267,6 +318,7 @@ pub struct RecordOffereeEvent<'info> {
         bump
     )]
     pub event_record: Account<'info, OffereeEventRecord>,
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -336,18 +388,49 @@ pub struct OffereeEventRecord {
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, InitSpace, PartialEq, Eq)]
-pub enum OffereeState { Registered, Invited, Applied, Allotted, Rejected, Withdrawn }
+pub enum OffereeState {
+    Registered,
+    Invited,
+    Applied,
+    Allotted,
+    Rejected,
+    Withdrawn,
+}
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, InitSpace, PartialEq, Eq)]
-pub enum OffereeEvent { Registered, Invite, Apply, Allot, Reject, Withdraw }
+pub enum OffereeEvent {
+    Registered,
+    Invite,
+    Apply,
+    Allot,
+    Reject,
+    Withdraw,
+}
 
 #[event]
-pub struct RegistrarAuthorizationChanged { pub asset: Pubkey, pub registrar: Pubkey, pub active: bool }
+pub struct RegistrarAuthorizationChanged {
+    pub asset: Pubkey,
+    pub registrar: Pubkey,
+    pub active: bool,
+}
 #[event]
-pub struct OfferingCreated { pub asset: Pubkey, pub offering: Pubkey, pub issuer: Pubkey }
+pub struct OfferingCreated {
+    pub asset: Pubkey,
+    pub offering: Pubkey,
+    pub issuer: Pubkey,
+}
 #[event]
-pub struct OffereeRegistered { pub offering: Pubkey, pub offeree_ref: [u8; 32] }
+pub struct OffereeRegistered {
+    pub offering: Pubkey,
+    pub offeree_ref: [u8; 32],
+}
 #[event]
-pub struct OffereeEventRecorded { pub offering: Pubkey, pub offeree_ref: [u8; 32], pub event: OffereeEvent }
+pub struct OffereeEventRecorded {
+    pub offering: Pubkey,
+    pub offeree_ref: [u8; 32],
+    pub event: OffereeEvent,
+}
 #[event]
-pub struct OfferingClosedEvent { pub offering: Pubkey }
+pub struct OfferingClosedEvent {
+    pub offering: Pubkey,
+}

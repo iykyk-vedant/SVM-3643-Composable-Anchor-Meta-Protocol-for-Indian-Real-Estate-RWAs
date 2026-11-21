@@ -6,12 +6,189 @@ pub mod distribution;
 pub mod placement;
 pub mod property;
 
+#[derive(Accounts)]
+#[instruction(asset_id: [u8; 32])]
+pub struct CreateAsset<'info> {
+    #[account(mut)]
+    pub issuer: Signer<'info>,
+    #[account(init, payer = issuer, space = 8 + property::AssetRegistry::INIT_SPACE,
+        seeds = [b"asset", issuer.key().as_ref(), asset_id.as_ref()], bump)]
+    pub asset: Account<'info, property::AssetRegistry>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(document_key: [u8; 32], version: u64)]
+pub struct AddDocumentVersion<'info> {
+    #[account(mut)]
+    pub issuer: Signer<'info>,
+    #[account(seeds = [b"asset", issuer.key().as_ref(), asset.asset_id.as_ref()],
+        bump = asset.bump, has_one = issuer @ ErrorCode::Unauthorized)]
+    pub asset: Account<'info, property::AssetRegistry>,
+    #[account(init, payer = issuer, space = 8 + property::DocumentVersion::INIT_SPACE,
+        seeds = [b"doc", asset.key().as_ref(), document_key.as_ref(), &version.to_le_bytes()], bump)]
+    pub document: Account<'info, property::DocumentVersion>,
+    pub previous_document: Option<Account<'info, property::DocumentVersion>>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct ManageVerifier<'info> {
+    #[account(mut)]
+    pub issuer: Signer<'info>,
+    /// CHECK: Used as the verifier authority PDA seed; verifier signs attestation transactions.
+    pub verifier: UncheckedAccount<'info>,
+    #[account(seeds = [b"asset", issuer.key().as_ref(), asset.asset_id.as_ref()],
+        bump = asset.bump, has_one = issuer @ ErrorCode::Unauthorized)]
+    pub asset: Account<'info, property::AssetRegistry>,
+    #[account(init_if_needed, payer = issuer, space = 8 + property::VerifierAuthorization::INIT_SPACE,
+        seeds = [b"verifier", asset.key().as_ref(), verifier.key().as_ref()], bump)]
+    pub authorization: Account<'info, property::VerifierAuthorization>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct AttestDocument<'info> {
+    #[account(mut)]
+    pub verifier: Signer<'info>,
+    #[account(seeds = [b"verifier", document.asset.as_ref(), verifier.key().as_ref()],
+        bump = authorization.bump, has_one = verifier @ ErrorCode::Unauthorized,
+        has_one = asset @ ErrorCode::AssetMismatch)]
+    pub authorization: Account<'info, property::VerifierAuthorization>,
+    #[account(seeds = [b"asset", asset.issuer.as_ref(), asset.asset_id.as_ref()], bump = asset.bump)]
+    pub asset: Account<'info, property::AssetRegistry>,
+    #[account(seeds = [b"doc", asset.key().as_ref(), document.document_key.as_ref(), &document.version.to_le_bytes()],
+        bump = document.bump)]
+    pub document: Account<'info, property::DocumentVersion>,
+    #[account(init, payer = verifier, space = 8 + property::VerifierAttestation::INIT_SPACE,
+        seeds = [b"attestation", document.key().as_ref(), verifier.key().as_ref()], bump)]
+    pub attestation: Account<'info, property::VerifierAttestation>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct ManageRegistrar<'info> {
+    #[account(mut)]
+    pub issuer: Signer<'info>,
+    /// CHECK: Used only as the delegated authority PDA seed.
+    pub registrar: UncheckedAccount<'info>,
+    #[account(seeds = [b"asset", issuer.key().as_ref(), asset.asset_id.as_ref()],
+        bump = asset.bump, has_one = issuer @ ErrorCode::Unauthorized)]
+    pub asset: Account<'info, property::AssetRegistry>,
+    #[account(init_if_needed, payer = issuer, space = 8 + placement::RegistrarAuthorization::INIT_SPACE,
+        seeds = [b"registrar", asset.key().as_ref(), registrar.key().as_ref()], bump)]
+    pub authorization: Account<'info, placement::RegistrarAuthorization>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(offering_id: [u8; 32])]
+pub struct CreateOffering<'info> {
+    #[account(mut)]
+    pub issuer: Signer<'info>,
+    #[account(seeds = [b"asset", issuer.key().as_ref(), asset.asset_id.as_ref()],
+        bump = asset.bump, has_one = issuer @ ErrorCode::Unauthorized)]
+    pub asset: Account<'info, property::AssetRegistry>,
+    #[account(init, payer = issuer, space = 8 + placement::Offering::INIT_SPACE,
+        seeds = [b"offering", asset.key().as_ref(), offering_id.as_ref()], bump)]
+    pub offering: Account<'info, placement::Offering>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(offeree_ref: [u8; 32])]
+pub struct RegisterOfferee<'info> {
+    #[account(mut)]
+    pub registrar: Signer<'info>,
+    #[account(mut, seeds = [b"offering", offering.asset.as_ref(), offering.offering_id.as_ref()],
+        bump = offering.bump, has_one = asset @ ErrorCode::AssetMismatch)]
+    pub offering: Account<'info, placement::Offering>,
+    pub asset: Account<'info, property::AssetRegistry>,
+    #[account(seeds = [b"registrar", offering.asset.as_ref(), registrar.key().as_ref()],
+        bump = authorization.bump, has_one = registrar @ ErrorCode::Unauthorized,
+        has_one = asset @ ErrorCode::AssetMismatch, constraint = authorization.active @ ErrorCode::Unauthorized)]
+    pub authorization: Account<'info, placement::RegistrarAuthorization>,
+    #[account(init, payer = registrar, space = 8 + placement::Offeree::INIT_SPACE,
+        seeds = [b"offeree", offering.key().as_ref(), offeree_ref.as_ref()], bump)]
+    pub offeree: Account<'info, placement::Offeree>,
+    #[account(init, payer = registrar, space = 8 + placement::OffereeEventRecord::INIT_SPACE,
+        seeds = [b"offeree-event", offeree.key().as_ref(), &0u32.to_le_bytes()], bump)]
+    pub registration_event: Account<'info, placement::OffereeEventRecord>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct RecordOffereeEvent<'info> {
+    #[account(mut)]
+    pub registrar: Signer<'info>,
+    #[account(mut, seeds = [b"offering", offering.asset.as_ref(), offering.offering_id.as_ref()],
+        bump = offering.bump, has_one = asset @ ErrorCode::AssetMismatch)]
+    pub offering: Account<'info, placement::Offering>,
+    pub asset: Account<'info, property::AssetRegistry>,
+    #[account(seeds = [b"registrar", offering.asset.as_ref(), registrar.key().as_ref()],
+        bump = authorization.bump, has_one = registrar @ ErrorCode::Unauthorized,
+        has_one = asset @ ErrorCode::AssetMismatch, constraint = authorization.active @ ErrorCode::Unauthorized)]
+    pub authorization: Account<'info, placement::RegistrarAuthorization>,
+    #[account(mut, seeds = [b"offeree", offering.key().as_ref(), offeree.offeree_ref.as_ref()],
+        bump = offeree.bump, has_one = offering @ ErrorCode::AssetMismatch)]
+    pub offeree: Account<'info, placement::Offeree>,
+    #[account(init, payer = registrar, space = 8 + placement::OffereeEventRecord::INIT_SPACE,
+        seeds = [b"offeree-event", offeree.key().as_ref(), &offeree.event_count.to_le_bytes()], bump)]
+    pub event_record: Account<'info, placement::OffereeEventRecord>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct CloseOffering<'info> {
+    pub issuer: Signer<'info>,
+    #[account(mut, seeds = [b"offering", offering.asset.as_ref(), offering.offering_id.as_ref()],
+        bump = offering.bump, has_one = issuer @ ErrorCode::Unauthorized)]
+    pub offering: Account<'info, placement::Offering>,
+}
+
+#[derive(Accounts)]
+#[instruction(epoch_id: u64)]
+pub struct CreateEpoch<'info> {
+    #[account(mut)]
+    pub issuer: Signer<'info>,
+    #[account(seeds = [b"asset", issuer.key().as_ref(), asset.asset_id.as_ref()],
+        bump = asset.bump, has_one = issuer @ ErrorCode::Unauthorized)]
+    pub asset: Account<'info, property::AssetRegistry>,
+    #[account(init, payer = issuer, space = 8 + distribution::DistributionEpoch::INIT_SPACE,
+        seeds = [b"epoch", asset.key().as_ref(), &epoch_id.to_le_bytes()], bump)]
+    pub epoch: Account<'info, distribution::DistributionEpoch>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct FinalizeEpoch<'info> {
+    pub issuer: Signer<'info>,
+    #[account(mut, seeds = [b"epoch", epoch.asset.as_ref(), &epoch.epoch_id.to_le_bytes()],
+        bump = epoch.bump, has_one = issuer @ ErrorCode::Unauthorized)]
+    pub epoch: Account<'info, distribution::DistributionEpoch>,
+}
+
+#[derive(Accounts)]
+#[instruction(correction_index: u32)]
+pub struct RecordCorrection<'info> {
+    #[account(mut)]
+    pub issuer: Signer<'info>,
+    #[account(seeds = [b"epoch", epoch.asset.as_ref(), &epoch.epoch_id.to_le_bytes()],
+        bump = epoch.bump, has_one = issuer @ ErrorCode::Unauthorized)]
+    pub epoch: Account<'info, distribution::DistributionEpoch>,
+    pub previous_correction: Option<Account<'info, distribution::CorrectionEpoch>>,
+    #[account(init, payer = issuer, space = 8 + distribution::CorrectionEpoch::INIT_SPACE,
+        seeds = [b"correction", epoch.key().as_ref(), &correction_index.to_le_bytes()], bump)]
+    pub correction: Account<'info, distribution::CorrectionEpoch>,
+    pub system_program: Program<'info, System>,
+}
+
 #[program]
 pub mod indian_rwa_registry {
     use super::*;
 
     pub fn create_asset(
-        ctx: Context<property::CreateAsset>,
+        ctx: Context<CreateAsset>,
         asset_id: [u8; 32],
         metadata_commitment: [u8; 32],
         mint: Option<Pubkey>,
@@ -20,7 +197,7 @@ pub mod indian_rwa_registry {
     }
 
     pub fn add_document_version(
-        ctx: Context<property::AddDocumentVersion>,
+        ctx: Context<AddDocumentVersion>,
         document_key: [u8; 32],
         version: u64,
         document_type: property::DocumentType,
@@ -37,46 +214,52 @@ pub mod indian_rwa_registry {
         )
     }
 
-    pub fn authorize_verifier(ctx: Context<property::ManageVerifier>, scope: u8) -> Result<()> {
+    pub fn authorize_verifier(ctx: Context<ManageVerifier>, scope: u8) -> Result<()> {
         property::authorize_verifier(ctx, scope)
     }
 
-    pub fn revoke_verifier(ctx: Context<property::ManageVerifier>) -> Result<()> {
+    pub fn revoke_verifier(ctx: Context<ManageVerifier>) -> Result<()> {
         property::revoke_verifier(ctx)
     }
 
     pub fn attest_document(
-        ctx: Context<property::AttestDocument>,
+        ctx: Context<AttestDocument>,
         review_commitment: [u8; 32],
         outcome: property::AttestationOutcome,
     ) -> Result<()> {
         property::attest_document(ctx, review_commitment, outcome)
     }
 
-    pub fn authorize_registrar(ctx: Context<placement::ManageRegistrar>) -> Result<()> {
+    pub fn authorize_registrar(ctx: Context<ManageRegistrar>) -> Result<()> {
         placement::authorize_registrar(ctx)
     }
 
-    pub fn revoke_registrar(ctx: Context<placement::ManageRegistrar>) -> Result<()> {
+    pub fn revoke_registrar(ctx: Context<ManageRegistrar>) -> Result<()> {
         placement::revoke_registrar(ctx)
     }
 
     pub fn create_offering(
-        ctx: Context<placement::CreateOffering>,
+        ctx: Context<CreateOffering>,
         offering_id: [u8; 32],
         fiscal_period: [u8; 16],
         terms_commitment: [u8; 32],
         administrative_offeree_limit: Option<u32>,
     ) -> Result<()> {
-        placement::create_offering(ctx, offering_id, fiscal_period, terms_commitment, administrative_offeree_limit)
+        placement::create_offering(
+            ctx,
+            offering_id,
+            fiscal_period,
+            terms_commitment,
+            administrative_offeree_limit,
+        )
     }
 
-    pub fn register_offeree(ctx: Context<placement::RegisterOfferee>, offeree_ref: [u8; 32]) -> Result<()> {
+    pub fn register_offeree(ctx: Context<RegisterOfferee>, offeree_ref: [u8; 32]) -> Result<()> {
         placement::register_offeree(ctx, offeree_ref)
     }
 
     pub fn record_offeree_event(
-        ctx: Context<placement::RecordOffereeEvent>,
+        ctx: Context<RecordOffereeEvent>,
         event: placement::OffereeEvent,
         commitment: [u8; 32],
         allotment_amount: Option<u64>,
@@ -84,12 +267,12 @@ pub mod indian_rwa_registry {
         placement::record_offeree_event(ctx, event, commitment, allotment_amount)
     }
 
-    pub fn close_offering(ctx: Context<placement::CloseOffering>) -> Result<()> {
+    pub fn close_offering(ctx: Context<CloseOffering>) -> Result<()> {
         placement::close_offering(ctx)
     }
 
     pub fn create_distribution_epoch(
-        ctx: Context<distribution::CreateEpoch>,
+        ctx: Context<CreateEpoch>,
         epoch_id: u64,
         currency_code: [u8; 3],
         decimals: u8,
@@ -103,17 +286,29 @@ pub mod indian_rwa_registry {
         merkle_root: [u8; 32],
         evidence_manifest_commitment: [u8; 32],
     ) -> Result<()> {
-        distribution::create_epoch(ctx, epoch_id, currency_code, decimals, record_date, snapshot_commitment,
-            gross, expenses_and_reserves, distributable, total_withheld, total_net, merkle_root,
-            evidence_manifest_commitment)
+        distribution::create_epoch(
+            ctx,
+            epoch_id,
+            currency_code,
+            decimals,
+            record_date,
+            snapshot_commitment,
+            gross,
+            expenses_and_reserves,
+            distributable,
+            total_withheld,
+            total_net,
+            merkle_root,
+            evidence_manifest_commitment,
+        )
     }
 
-    pub fn finalize_distribution_epoch(ctx: Context<distribution::FinalizeEpoch>) -> Result<()> {
+    pub fn finalize_distribution_epoch(ctx: Context<FinalizeEpoch>) -> Result<()> {
         distribution::finalize_epoch(ctx)
     }
 
     pub fn record_correction(
-        ctx: Context<distribution::RecordCorrection>,
+        ctx: Context<RecordCorrection>,
         correction_index: u32,
         currency_code: [u8; 3],
         decimals: u8,
@@ -126,9 +321,20 @@ pub mod indian_rwa_registry {
         evidence_manifest_commitment: [u8; 32],
         reason_commitment: [u8; 32],
     ) -> Result<()> {
-        distribution::record_correction(ctx, correction_index, currency_code, decimals, gross,
-            expenses_and_reserves, distributable, total_withheld, total_net, merkle_root,
-            evidence_manifest_commitment, reason_commitment)
+        distribution::record_correction(
+            ctx,
+            correction_index,
+            currency_code,
+            decimals,
+            gross,
+            expenses_and_reserves,
+            distributable,
+            total_withheld,
+            total_net,
+            merkle_root,
+            evidence_manifest_commitment,
+            reason_commitment,
+        )
     }
 }
 
@@ -166,7 +372,7 @@ pub enum ErrorCode {
     EpochFinalized,
     #[msg("A correction must append to the prior correction in order")]
     InvalidCorrectionChain,
-    #[msg("Currency must be a three-letter uppercase code")]
+    #[msg("Currency code or decimal precision is invalid for this record")]
     InvalidCurrency,
     #[msg("Distribution epoch must be finalized first")]
     EpochNotFinalized,

@@ -1,6 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Keypair, PublicKey } from "@solana/web3.js";
-import { IndianRwaRegistry } from "../target/types/indian_rwa_registry";
+import type { IndianRwaRegistry } from "../target/types/indian_rwa_registry";
 
 describe("property registry", () => {
   const provider = anchor.AnchorProvider.env();
@@ -65,6 +65,37 @@ describe("property registry", () => {
     await expectFailure(() => program.methods.addDocumentVersion([...documentKey], new anchor.BN(4), { valuation: {} },
       [...new Uint8Array(32).fill(5)], [...new Uint8Array(32).fill(6)])
       .accounts({ issuer, asset, document: v4, previousDocument: v2 }).rpc());
+
+    const verifier = Keypair.generate();
+    const verifierAirdrop = await provider.connection.requestAirdrop(verifier.publicKey, anchor.web3.LAMPORTS_PER_SOL);
+    await provider.connection.confirmTransaction(verifierAirdrop, "confirmed");
+    const verifierAuthorization = PublicKey.findProgramAddressSync(
+      [Buffer.from("verifier"), asset.toBuffer(), verifier.publicKey.toBuffer()], program.programId,
+    )[0];
+    await program.methods.authorizeVerifier(2).accounts({ issuer, verifier: verifier.publicKey, asset,
+      authorization: verifierAuthorization, systemProgram: anchor.web3.SystemProgram.programId }).rpc();
+    const attestation = PublicKey.findProgramAddressSync(
+      [Buffer.from("attestation"), v2.toBuffer(), verifier.publicKey.toBuffer()], program.programId,
+    )[0];
+    await program.methods.attestDocument([...new Uint8Array(32).fill(13)], { reviewed: {} })
+      .accounts({ verifier: verifier.publicKey, authorization: verifierAuthorization, asset, document: v2,
+        attestation, systemProgram: anchor.web3.SystemProgram.programId }).signers([verifier]).rpc();
+    await expectFailure(() => program.methods.attestDocument([...new Uint8Array(32).fill(14)], { reviewed: {} })
+      .accounts({ verifier: verifier.publicKey, authorization: verifierAuthorization, asset, document: v2,
+        attestation, systemProgram: anchor.web3.SystemProgram.programId }).signers([verifier]).rpc());
+
+    const v3 = document(3n);
+    await program.methods.addDocumentVersion([...documentKey], new anchor.BN(3), { valuation: {} },
+      [...new Uint8Array(32).fill(7)], [...new Uint8Array(32).fill(8)])
+      .accounts({ issuer, asset, document: v3, previousDocument: v2 }).rpc();
+    await program.methods.revokeVerifier().accounts({ issuer, verifier: verifier.publicKey, asset,
+      authorization: verifierAuthorization, systemProgram: anchor.web3.SystemProgram.programId }).rpc();
+    const revokedAttestation = PublicKey.findProgramAddressSync(
+      [Buffer.from("attestation"), v3.toBuffer(), verifier.publicKey.toBuffer()], program.programId,
+    )[0];
+    await expectFailure(() => program.methods.attestDocument([...new Uint8Array(32).fill(15)], { reviewed: {} })
+      .accounts({ verifier: verifier.publicKey, authorization: verifierAuthorization, asset, document: v3,
+        attestation: revokedAttestation, systemProgram: anchor.web3.SystemProgram.programId }).signers([verifier]).rpc());
   });
 });
 

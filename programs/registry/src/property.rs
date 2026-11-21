@@ -3,7 +3,7 @@ use anchor_lang::prelude::*;
 use crate::ErrorCode;
 
 pub fn create_asset(
-    ctx: Context<CreateAsset>,
+    ctx: Context<crate::CreateAsset>,
     asset_id: [u8; 32],
     metadata_commitment: [u8; 32],
     mint: Option<Pubkey>,
@@ -22,7 +22,7 @@ pub fn create_asset(
 }
 
 pub fn add_document_version(
-    ctx: Context<AddDocumentVersion>,
+    ctx: Context<crate::AddDocumentVersion>,
     document_key: [u8; 32],
     version: u64,
     document_type: DocumentType,
@@ -37,9 +37,19 @@ pub fn add_document_version(
     match (version, previous) {
         (1, None) => (),
         (next, Some(previous)) => {
-            require_keys_eq!(previous.asset, ctx.accounts.asset.key(), ErrorCode::AssetMismatch);
-            require!(previous.document_key == document_key, ErrorCode::InvalidPredecessor);
-            require!(previous.version.checked_add(1) == Some(next), ErrorCode::InvalidVersion);
+            require_keys_eq!(
+                previous.asset,
+                ctx.accounts.asset.key(),
+                ErrorCode::AssetMismatch
+            );
+            require!(
+                previous.document_key == document_key,
+                ErrorCode::InvalidPredecessor
+            );
+            require!(
+                previous.version.checked_add(1) == Some(next),
+                ErrorCode::InvalidVersion
+            );
             let expected_previous = Pubkey::find_program_address(
                 &[
                     b"doc",
@@ -50,7 +60,11 @@ pub fn add_document_version(
                 ctx.program_id,
             )
             .0;
-            require_keys_eq!(previous.key(), expected_previous, ErrorCode::InvalidPredecessor);
+            require_keys_eq!(
+                previous.key(),
+                expected_previous,
+                ErrorCode::InvalidPredecessor
+            );
         }
         _ => return err!(ErrorCode::InvalidPredecessor),
     }
@@ -69,7 +83,7 @@ pub fn add_document_version(
     Ok(())
 }
 
-pub fn authorize_verifier(ctx: Context<ManageVerifier>, scope: u8) -> Result<()> {
+pub fn authorize_verifier(ctx: Context<crate::ManageVerifier>, scope: u8) -> Result<()> {
     require!(scope != 0, ErrorCode::InvalidScope);
     let authorization = &mut ctx.accounts.authorization;
     authorization.asset = ctx.accounts.asset.key();
@@ -80,21 +94,24 @@ pub fn authorize_verifier(ctx: Context<ManageVerifier>, scope: u8) -> Result<()>
     Ok(())
 }
 
-pub fn revoke_verifier(ctx: Context<ManageVerifier>) -> Result<()> {
+pub fn revoke_verifier(ctx: Context<crate::ManageVerifier>) -> Result<()> {
     require!(ctx.accounts.authorization.active, ErrorCode::AlreadyRevoked);
     ctx.accounts.authorization.active = false;
     Ok(())
 }
 
 pub fn attest_document(
-    ctx: Context<AttestDocument>,
+    ctx: Context<crate::AttestDocument>,
     review_commitment: [u8; 32],
     outcome: AttestationOutcome,
 ) -> Result<()> {
     require!(ctx.accounts.authorization.active, ErrorCode::Unauthorized);
     require!(review_commitment != [0; 32], ErrorCode::InvalidCommitment);
     let type_scope = 1u8 << (ctx.accounts.document.document_type as u8);
-    require!(ctx.accounts.authorization.scope & type_scope != 0, ErrorCode::InvalidScope);
+    require!(
+        ctx.accounts.authorization.scope & type_scope != 0,
+        ErrorCode::InvalidScope
+    );
 
     let attestation = &mut ctx.accounts.attestation;
     attestation.document = ctx.accounts.document.key();
