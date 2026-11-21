@@ -1,50 +1,73 @@
-# Indian RWA Registry Protocol (fictional demo)
+# Indian RWA Registry Protocol
 
-A five-day Solana prototype for three composable record registries: property documents, private placement administration, and rental distributions with receipt commitments. This repository is not a legal tokenization standard, title registry, KYC provider, tax engine, or compliance certification. All sample entities and values are fictional.
+An experimental Solana program for recording property-document commitments, private-placement administration events, and distribution receipt commitments. The repository includes a TypeScript SDK, validator tests, a fictional lifecycle demo, and a small Next.js interface.
 
-## Current implementation status
+This is a prototype. It does not establish property title, regulatory compliance, tax treatment, payment settlement, or tax remittance. All demo data is fictional.
 
-The workspace has issuer-owned asset PDAs, append-only document version PDAs, verifier authorization/attestation, a Private Placement Registry with registrar roles and persistent offeree event records, and a Rental Yield & Tax Receipt Registry with immutable epochs and append-only corrections. The SDK has typed transaction helpers, account fetchers, domain-separated hashing, and deterministic Merkle receipt generation/proof verification. A localnet lifecycle script and Next.js fictional scenario/receipt-proof UI are present. Rust/Anchor builds and validator-backed integration tests are verified. The UI is a local preview, not a transaction client.
+## Registries
+
+- **Property documents:** issuer-owned asset records, append-only document versions, verifier authorization and attestations.
+- **Private placement:** offerings, opaque offeree references, registrar permissions, and append-only event history.
+- **Rental distribution:** immutable distribution epochs, arithmetic checks, receipt Merkle roots, and append-only corrections.
+
+The registries are separate modules in one Anchor program. The SDK provides transaction helpers, account fetchers, document hashing, and receipt-proof generation and verification.
 
 ## Requirements
 
-- Windows: install WSL 2 and an Ubuntu distribution, then install Rust, Solana CLI and Anchor there. Solana's official guide states that Windows development uses WSL: [installation guide](https://solana.com/docs/intro/installation).
-- Anchor CLI `0.31.1`, Solana CLI `2.2.1`, Rust stable supported by that Solana toolchain.
-- Node.js `22.x` and pnpm `10.20.0`.
+- Rust and Cargo
+- Solana CLI 2.2.1 and Anchor CLI 0.31.1
+- Node.js 22 and pnpm 10.20.0
+- On Windows, use WSL 2 with Ubuntu for the Solana toolchain
 
-The workspace pins the Anchor and Solana CLI versions in `Anchor.toml` and Anchor Rust dependency in `Cargo.toml`. Verify the installed versions before building.
-
-On a fresh checkout, build once to generate the local program keypair, run `anchor keys sync`, then build again so `declare_id!`, `Anchor.toml`, and the SBF artifact use the same program address.
-
-## Commands
+## Build and test
 
 ```sh
-pnpm install
-cargo fmt --all -- --check
+pnpm install --frozen-lockfile
+anchor build
+anchor keys sync
 anchor build
 anchor test
 pnpm test:unit
-pnpm --filter @indian-rwa/registry-sdk typecheck
+pnpm typecheck
+pnpm --filter @indian-rwa/demo-app build
+```
+
+On a fresh checkout, the first build creates the local program keypair. `anchor keys sync` aligns the declared program address with that keypair; the second build produces the matching artifact. `anchor test` starts a local validator and runs the integration suite.
+
+## Run the fictional demo
+
+After building and syncing the program, start a local validator with the program loaded at genesis:
+
+```sh
+solana-test-validator --reset \
+  --bpf-program target/deploy/indian_rwa_registry-keypair.json \
+  target/deploy/indian_rwa_registry.so
+```
+
+In another terminal, run:
+
+```sh
+anchor run demo
+```
+
+The demo records a fictional property, two document versions, eight opaque offeree references, and one distribution epoch. It prints funnel counts and checks a valid and tampered receipt proof. The proof demonstrates inclusion in a committed root; it does not demonstrate payment.
+
+To run the UI locally:
+
+```sh
 pnpm --filter @indian-rwa/demo-app dev
 ```
 
-For local development, configure a local Solana keypair and validator as described in the [Solana CLI docs](https://solana.com/docs/references/cli). `anchor test` starts the configured local validator, deploys the program, then runs the TypeScript integration tests.
-
-To seed a local validator with synthetic records, run `anchor build`, then start `solana-test-validator --reset --bpf-program target/deploy/indian_rwa_registry-keypair.json target/deploy/indian_rwa_registry.so` and run `anchor run demo` in another terminal. The validator loads the local program at genesis. The demo creates an asset, versions and attests a fictional valuation commitment, records eight synthetic offeree references (six invited, four applied, three allotted), creates and finalizes one fictional distribution epoch, and checks a valid and tampered receipt proof. It requires an Anchor-generated IDL at `target/idl/indian_rwa_registry.json`.
-
-## Property registry (implemented first slice)
-
-- Asset PDA: `["asset", issuer, asset_id]`; only the signing issuer can create its asset account.
-- Document PDA: `["doc", asset, document_key, version_le_u64]`.
-- Version 1 has no predecessor. Later versions require the immediately preceding record for the same asset and opaque document key. Each version has a distinct immutable account.
-- Hash inputs should use random opaque IDs and off-chain controlled documents. A hash proves byte integrity only; it does not establish authenticity, title or legal effect.
-
 ## Security and limitations
 
-- No raw identity data, tax IDs, private investor data, confidential documents or live payment information belong in public accounts or events.
-- Issuer and verifier statements are attributable claims, not independent legal findings. The protocol does not verify property title, regulatory eligibility, tax treatment, payment settlement or tax remittance.
-- The planned offeree registry counts opaque people references, not wallet holders; its configurable administrative limit will not encode a universal legal cap.
-- All legal and tax decisions remain off-chain and require appropriate professional review. No real asset, investor, KYC, banking or money is used.
-- One program contains three separated modules to avoid cross-program integration overhead for this prototype; module account and instruction boundaries are intended to remain separable.
+- Do not put personal data, identity documents, tax IDs, private contracts, or live payment information on-chain.
+- Hashes show byte integrity, not document authenticity or legal title. Issuer and verifier records remain attributable claims.
+- Offeree counts are not wallet-holder counts and do not implement a statutory offering limit.
+- Distribution records do not calculate taxes or prove bank settlement or tax remittance. Legal and tax decisions remain off-chain.
+- This prototype is not intended for production assets or real funds.
 
-See `docs/SECURITY.md`, `docs/ARCHITECTURE.md`, `docs/IMPLEMENTATION_PLAN.md`, and `docs/DECISIONS.md` for full invariants, plans, and verification status.
+See [Architecture](docs/ARCHITECTURE.md), [Security](SECURITY.md), [Decisions](docs/DECISIONS.md), and [External dependencies](docs/EXTERNAL_DEPENDENCIES.md).
+
+## License
+
+Licensed under the [Apache License 2.0](LICENSE).

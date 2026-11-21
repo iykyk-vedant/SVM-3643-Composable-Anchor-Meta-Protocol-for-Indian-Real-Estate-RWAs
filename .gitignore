@@ -1,11 +1,34 @@
-/node_modules/
-**/node_modules/
+# Rust and Anchor build output
 /target/
-/test-ledger/
 /.anchor/
-/app/.next/
-/app/out/
-/app/node_modules/
-*.log
-.env*
+/test-ledger/
+/ledger/
+
+# JavaScript dependencies and build output
+**/node_modules/
+**/.next/
+**/out/
+**/coverage/
+**/.turbo/
+*.tsbuildinfo
+
+# Local environment and secrets
+.env
+.env.*
 !.env.example
+**/*-keypair.json
+**/id.json
+
+# Local-only implementation plan
+/docs/IMPLEMENTATION_PLAN.md
+
+# Logs and editor/OS files
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+*.swo
