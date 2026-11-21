@@ -1,0 +1,25 @@
+{
+  "specification": "indian-rwa-distribution-receipt-v1",
+  "leafEncoding": "UTF-8 domain prefix with NUL, fixed-width raw keys, unsigned integers little-endian, ASCII currency, decimals u8",
+  "nodeEncoding": "SHA-256(0x01 || lexicographically-smaller-hash || lexicographically-larger-hash); duplicate final node on odd levels",
+  "receipt": {
+    "programIdHex": "0101010101010101010101010101010101010101010101010101010101010101",
+    "assetHex": "0202020202020202020202020202020202020202020202020202020202020202",
+    "epochId": "17",
+    "investorRefHex": "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+    "gross": "12500",
+    "withheld": "1250",
+    "net": "11250",
+    "currencyCode": "INR",
+    "decimals": 2,
+    "nonce": "1"
+  },
+  "canonicalBytesHex": "696e6469616e2d7277613a646973747269627574696f6e2d726563656970743a7631000101010101010101010101010101010101010101010101010101010101010101020202020202020202020202020202020202020202020202020202020202020211000000000000000b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0bd430000000000000e204000000000000f22b000000000000494e52020100000000000000",
+  "leafHashHex": "41966906fc8f451066b8c1b33d9691a34423ef181b0a9c6228a52baa680da705",
+  "rootHex": "dddad2d8411ddf15831cc1c3bb11757ba1a0f147ac2fc8a02857989f22e6aacd",
+  "proofHex": [
+    "bf2550755425834f36968155709dc7dadaf697cfbffc5647f17e2b3f31ff1844",
+    "2806b1fa9007ad0327939920b79d00ac2802d2ed7e9667d2617916c4fdb30e28"
+  ],
+  "tamperedNet": "11249"
+}

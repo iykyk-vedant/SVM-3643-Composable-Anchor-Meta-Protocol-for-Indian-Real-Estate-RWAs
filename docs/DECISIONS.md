@@ -24,7 +24,18 @@
 - Passed: `pnpm exec tsc --noEmit --target ES2022 --module commonjs --moduleResolution node --strict --esModuleInterop --skipLibCheck sdk/src/index.ts sdk/src/property.ts`.
 - Blocked: `cargo fmt --check`, `anchor build`, and Anchor integration tests — `cargo`, `anchor`, and `solana` are not installed; WSL has no Linux distribution. The property integration tests exist but are not counted as executed.
 
-**Next task:** install/enable the documented Linux toolchain, compile and run the property integration tests, then complete verifier authorization and the Private Placement Registry per `docs/IMPLEMENTATION_PLAN.md`.
+**Next task:** install/enable the documented Linux toolchain, compile and run Anchor tests, then add placement/distribution end-to-end tests, SDK transaction/fetch helpers, and the fictional demo/UI.
+
+### Placement, distribution, and SDK milestone
+
+- Implemented issuer-scoped registrar authorization, an offering PDA, unique offeree PDAs, and append-only offeree event accounts for registration/invitation/application/allotment/rejection/withdrawal.
+- Implemented issuer-owned distribution epochs with checked arithmetic, finalization, and append-only sequential correction PDAs. Corrections remain linked to a finalized epoch and must preserve its currency and decimals.
+- Added deterministic receipt serialization, SHA-256 leaves, sorted pair hashing, odd-node duplication, proof generation/verification, and `sdk/test-vectors/merkle.json`.
+- Passed: `pnpm --filter @indian-rwa/registry-sdk typecheck`.
+- Passed: `pnpm exec ts-mocha -p tsconfig.json -t 100000 tests/sdk.ts` — 5 tests, including tampered amount, wrong epoch, invalid totals, and the golden vector.
+- Not run/blocked: `cargo fmt --check`, `cargo test`, `anchor build`, `anchor test`; no Rust/Solana/Anchor toolchain or local validator is installed.
+
+**Next task:** implement a focused Next.js demo and transaction/fetch SDK layer, add Anchor placement/distribution integration tests, then attempt the full protocol verification after the Linux toolchain is available.
 
 ## Toolchain verification
 

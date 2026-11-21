@@ -5,7 +5,8 @@
   "main": "src/index.ts",
   "scripts": {
     "test": "ts-mocha -p ../tsconfig.json -t 100000 ../tests/**/*.ts",
-    "typecheck": "tsc --noEmit -p ../tsconfig.json"
+    "typecheck": "tsc --noEmit -p ../tsconfig.sdk.json",
+    "generate:merkle-vector": "ts-node -P ../tsconfig.json src/generate-merkle-vector.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "0.31.1",

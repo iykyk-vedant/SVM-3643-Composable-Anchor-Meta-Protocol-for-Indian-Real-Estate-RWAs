@@ -4,7 +4,7 @@ A five-day Solana prototype for three composable record registries: property doc
 
 ## Current implementation status
 
-The day-one workspace and first Property Document Registry path are scaffolded: issuer-owned asset PDAs, append-only document version PDAs, a domain-separated document hash helper, and initial Anchor integration tests. Placement, distribution, complete SDK transaction builders, lifecycle demo and Next.js UI are still pending.
+The workspace has issuer-owned asset PDAs, append-only document version PDAs, verifier authorization/attestation, a Private Placement Registry with registrar roles and persistent offeree event records, and a Rental Yield & Tax Receipt Registry with immutable epochs and append-only corrections. The SDK has document hashing and deterministic Merkle receipt generation/proof verification. Anchor integration tests, remaining SDK transaction builders/fetchers, lifecycle demo and Next.js UI are still pending.
 
 ## Requirements
 
